@@ -1,21 +1,23 @@
 import numpy as np 
 
 class Tensor: 
-   def __init__(self, data, requires_grad=False, _parents=(), _op=''): 
+   def __init__(self, data, requires_grad=False, _parents=(), _op='', name=''): 
       self.data = np.array(data, dtype=np.float64)
       self.requires_grad = requires_grad 
       self.grad = None 
 
-      self._backward = lambda : None      # gradient function
-      self._prev = set(_parents)         # tensors used to create this one
-      self._op = _op                      # operation involved
+      self._backward = lambda : None
+      self._prev = set(_parents)
+      self._op = _op
+      self.name = name  # Optional name for identification
 
    def __repr__(self):
-      return f'Tensor(data={self.data}, grad={self.grad}, requires_grad={self.requires_grad})'
+      name_str = f", name='{self.name}'" if self.name else ""
+      return f"Tensor(data={self.data}, grad={self.grad}, requires_grad={self.requires_grad}{name_str})"
 
    def __add__(self, other): 
       other = other if isinstance(other, Tensor) else Tensor(other)
-      out = Tensor(self.data+other.data, requires_grad=(self.requires_grad or other.requires_grad), _parents=(self, other), _op='+')
+      out = Tensor(self.data + other.data, requires_grad=(self.requires_grad or other.requires_grad), _parents=(self, other), _op='+')
 
       def _backward():
          if self.requires_grad:
@@ -28,7 +30,7 @@ class Tensor:
 
    def __mul__(self, other): 
       other = other if isinstance(other, Tensor) else Tensor(other)
-      out = Tensor(self.data+other.data, requires_grad=(self.requires_grad or other.requires_grad), _parents=(self, other), _op='*')
+      out = Tensor(self.data * other.data, requires_grad=(self.requires_grad or other.requires_grad), _parents=(self, other), _op='*')
 
       def _backward(): 
          if self.requires_grad:
@@ -39,11 +41,9 @@ class Tensor:
             other.grad = other.grad + grad_other if other.grad is not None else grad_other
       
       out._backward = _backward
-
       return out 
 
    def __neg__(self): return self * -1
-
    def __sub__(self, other): return self + (-other)
 
    def __pow__(self, power):
@@ -57,7 +57,6 @@ class Tensor:
 
       out._backward = _backward
       return out
-
 
    def backward(self): 
       if self.grad is None: 
@@ -73,31 +72,30 @@ class Tensor:
             topo.append(tensor)
       
       build_topo(self)
-   
       for tensor in reversed(topo): 
          tensor._backward()
 
    def zero_grad(self): 
       if self.requires_grad: 
          self.grad = 0.0
-   
+
+   def update(self, lr):
+      if self.requires_grad:
+         self.data -= np.array(lr*self.grad, dtype=np.float64)
+
    @property 
    def shape(self): return self.data.shape 
 
-   #right hand methods 
+   # right-hand methods 
    def __radd__(self, other): return self + other
    def __rmul__(self, other): return self * other 
    def __rsub__(self, other): return (-self) + other 
 
 if __name__=="__main__": 
-   a = Tensor(4, requires_grad=True)
-   b = Tensor(6, requires_grad=True)
+   a = Tensor(4, requires_grad=True, name='a')
+   b = Tensor(6, requires_grad=True, name='b')
    c =  a**2 + b
    print(c)
    c.backward()
    print(a)
    print(b)
-
-
-
-      
